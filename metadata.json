@@ -1,0 +1,6 @@
+{
+  "name": "WalletPro Enterprise",
+  "description": "Enterprise fintech architectural audit and modernization operating platform with real-time risk, treasury, and compliance analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
