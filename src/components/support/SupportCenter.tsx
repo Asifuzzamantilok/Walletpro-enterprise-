@@ -607,7 +607,7 @@ export function SupportCenter({ activeSubTab, onToast, onSelectTab }: { activeSu
   }, [searchKbQuery, selectedKbCategory]);
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
+    <div className="flex-1 flex flex-col bg-slate-50">
       
       {/* HEADER BAR FOR SUPPORT CENTER */}
       <div className="bg-white border-b border-slate-200 px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -639,7 +639,7 @@ export function SupportCenter({ activeSubTab, onToast, onSelectTab }: { activeSu
       </div>
 
       {/* RENDER DYNAMIC SUPPORT SUB-TAB VIEW */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="flex-1 flex flex-col">
         
         {/* TAB 1: SUPPORT DASHBOARD */}
         {activeSubTab === 'support-dashboard' && (

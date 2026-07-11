@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Users, CheckCircle, ShieldAlert, Wallet, CreditCard, ArrowUpRight, ArrowDownRight, 
   TrendingUp, Activity, CircleDot, AlertTriangle, Clock, RefreshCw, Plus, MinusCircle, 
-  UserCheck, Send, Zap, ChevronRight, Search, Play, Pause, Trash2, X, Filter, Sparkles,
+  UserCheck, Send, Zap, ChevronRight, ChevronUp, ChevronDown, Search, Play, Pause, Trash2, X, Filter, Sparkles,
   Database, Server, Cpu, HardDrive, Mail, Phone, BellRing, Settings, ShieldCheck, Terminal,
   MessageSquare, FileText, Ban, Check, DollarSign, BarChart3, HelpCircle, AlertOctagon, Info
 } from 'lucide-react';
@@ -46,7 +46,11 @@ interface QuickActionModalProps {
   onSubmit: (data: any) => void;
 }
 
-export function ExecutiveDashboard() {
+interface ExecutiveDashboardProps {
+  addToast?: (title: string, message: string, type: 'success' | 'info' | 'warning' | 'error') => void;
+}
+
+export function ExecutiveDashboard({ addToast }: ExecutiveDashboardProps) {
   const [activeKpiCategory, setActiveKpiCategory] = useState<'all' | 'financial' | 'customers' | 'wallets' | 'operations'>('all');
   const [activeChartGroup, setActiveChartGroup] = useState<'financial' | 'growth' | 'operations'>('financial');
   const [operationFilter, setOperationFilter] = useState<'all' | 'transaction' | 'kyc' | 'support' | 'fraud' | 'failed_payment' | 'admin_action' | 'login'>('all');
@@ -73,6 +77,42 @@ export function ExecutiveDashboard() {
   const [isLiveUpdating, setIsLiveUpdating] = useState(true);
   const [errorSimulationMode, setErrorSimulationMode] = useState(false);
   const [loadingSimulationMode, setLoadingSimulationMode] = useState(false);
+  const [isDevMode, setIsDevMode] = useState(false);
+  const [isKpiExpanded, setIsKpiExpanded] = useState(false);
+
+  // Stateful Executive Alerts
+  const [executiveAlerts, setExecutiveAlerts] = useState([
+    {
+      id: 'alert-1',
+      severity: 'critical', // critical, warning, info
+      time: '1m ago',
+      title: 'Clearing Node Outflow Discrepancy',
+      desc: 'FedWire clearing gateway reported mismatch of EUR transactions. Security keys temporarily throttled.',
+      system: 'FedWire Gateway',
+      owner: 'tilok.compliance@walletpro.co',
+      unresolved: true
+    },
+    {
+      id: 'alert-2',
+      severity: 'warning',
+      time: '15m ago',
+      title: 'Redis Memory Limit Approaching 80%',
+      desc: 'Cluster #09 cache is saturating with live ledger balances. Auto-scaling policy primed to scale node.',
+      system: 'Redis Cache Cluster #09',
+      owner: 'infra.ops@walletpro.co',
+      unresolved: true
+    },
+    {
+      id: 'alert-3',
+      severity: 'info',
+      time: '1h ago',
+      title: 'PCI-DSS Audit Pre-Flight Renewed',
+      desc: 'Scheduled cron job verified security posture: 5 of 5 controls compliant. Certificates refreshed.',
+      system: 'PCI Security Engine',
+      owner: 'auditor.compliance@walletpro.co',
+      unresolved: true
+    }
+  ]);
 
   // Quick Action Modal active state
   const [activeQuickAction, setActiveQuickAction] = useState<string | null>(null);
@@ -440,6 +480,32 @@ export function ExecutiveDashboard() {
         logDetail = `Delivered secure system notification to all mobile & web sessions: "${data.message || 'Scheduled platform maintenance'}"`;
         logType = 'admin_action';
         break;
+      case 'sys_config':
+        logTitle = 'Global System Limit Shifted';
+        logDetail = `Max velocity set to $${parseFloat(data.max_limit || '150000').toLocaleString()}. Global reserve ratio adjusted to ${data.buffer_ratio || '15'}%.`;
+        logType = 'admin_action';
+        logStatus = 'completed';
+        break;
+      case 'flag_user':
+        logTitle = 'Compliance Alert Watchlist Flag';
+        logDetail = `User account under email ${data.email || 'suspicious@operator.com'} was flagged for immediate AML auditing velocity scan.`;
+        logType = 'fraud';
+        logStatus = 'warning';
+        // Bump fraud alerts counter
+        setKpis(prev => prev.map(k => {
+          if (k.id === 'fraud-alerts') {
+            const nv = k.numberVal + 1;
+            return { ...k, numberVal: nv, value: nv.toLocaleString() };
+          }
+          return k;
+        }));
+        break;
+      case 'treasury_sweep':
+        logTitle = 'Treasury Liquidity Clear';
+        logDetail = `Cleared sweep of $${parseFloat(data.sweep_amount || '4500000').toLocaleString()} to routing bank account: ${data.routing || 'JP_MORGAN'}.`;
+        logType = 'transaction';
+        logStatus = 'completed';
+        break;
     }
 
     const manualLog: OperationLog = {
@@ -455,6 +521,18 @@ export function ExecutiveDashboard() {
 
     setLogs(prev => [manualLog, ...prev]);
     setActiveQuickAction(null);
+
+    if (addToast) {
+      addToast('Command Executed', logTitle, 'success');
+    }
+  };
+
+  // Interactive alert dismissal handler
+  const handleAcknowledgeAlert = (alertId: string) => {
+    setExecutiveAlerts(prev => prev.filter(a => a.id !== alertId));
+    if (addToast) {
+      addToast('Alert Safely Archived', 'Regional operational threat has been audited and signed.', 'success');
+    }
   };
 
   // Interactive resolutions directly on operational items
@@ -556,96 +634,143 @@ export function ExecutiveDashboard() {
     return true;
   });
 
-  // Filtered KPIs
-  const filteredKpis = kpis.filter(kpi => {
-    if (activeKpiCategory !== 'all' && kpi.category !== activeKpiCategory) return false;
-    return true;
-  });
+  // Filtered KPIs (Top 6 primary vs 13 additional)
+  const primaryKpiIds = ['revenue-today', 'total-customers', 'processing-volume', 'pending-kyc', 'fraud-alerts', 'system-health'];
+  
+  const primaryKpis = kpis.filter(kpi => primaryKpiIds.includes(kpi.id))
+    .filter(kpi => {
+      if (activeKpiCategory !== 'all' && kpi.category !== activeKpiCategory) return false;
+      return true;
+    });
+
+  const additionalKpis = kpis.filter(kpi => !primaryKpiIds.includes(kpi.id))
+    .filter(kpi => {
+      if (activeKpiCategory !== 'all' && kpi.category !== activeKpiCategory) return false;
+      return true;
+    });
+
+  const isDevelopment = (import.meta as any).env?.MODE === 'development' || (import.meta as any).env?.DEV || false;
+  const showDevTools = isDevelopment && activeRole === 'Developer';
 
   return (
-    <div id="executive-dashboard-panel" className="grid grid-cols-12 gap-6 h-full overflow-hidden select-none">
+    <div id="executive-dashboard-panel" className="grid grid-cols-12 gap-6 select-none">
       {/* LEFT 9 COLUMNS: Main Controls, KPIs, Recharts, and running log stream */}
-      <div className="col-span-12 xl:col-span-9 flex flex-col gap-6 h-full overflow-y-auto pr-2 custom-scrollbar">
+      <div className="col-span-12 xl:col-span-9 flex flex-col gap-6 pr-2">
         
         {/* TOP STATUS AND CONTROL STRIP */}
-        <div className="bg-white rounded-xl border border-slate-200/60 p-4 shadow-xs flex flex-wrap justify-between items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <span className="relative flex h-2 w-2">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isLiveUpdating ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${isLiveUpdating ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-            </span>
-            <div>
-              <p className="text-xs font-bold text-slate-800">
-                {isLiveUpdating ? 'Platform Live Stream Active' : 'Live Stream Paused'}
-              </p>
-              <p className="text-[10px] text-slate-400 font-mono">
-                Authoritative Master Ledger Node: <strong className="text-blue-600 font-bold">online_4.21.99</strong>
-              </p>
+        <div className="bg-white rounded-xl border border-slate-200/60 p-4 shadow-sm flex flex-wrap justify-between items-center gap-4">
+          {showDevTools ? (
+            <div className="flex items-center gap-2.5 animate-fade-in">
+              <span className="relative flex h-2 w-2">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isLiveUpdating ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${isLiveUpdating ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+              </span>
+              <div>
+                <p className="text-xs font-bold text-slate-800">
+                  {isLiveUpdating ? 'Platform Live Stream Active' : 'Live Stream Paused'}
+                </p>
+                <p className="text-[10px] text-slate-400 font-mono">
+                  Authoritative Master Ledger Node: <strong className="text-blue-600 font-bold">online_4.21.99</strong>
+                </p>
+              </div>
             </div>
-          </div>
-
-          {/* Quick Simulation Debug Controls */}
-          {(activeRole === 'Super Administrator' || activeRole === 'Developer') && (
-            <div className="flex items-center gap-2">
-              {/* Live Toggling */}
-              <button
-                onClick={() => setIsLiveUpdating(!isLiveUpdating)}
-                className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-md border transition-all cursor-pointer ${
-                  isLiveUpdating 
-                    ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200' 
-                    : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
-                }`}
-              >
-                {isLiveUpdating ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                {isLiveUpdating ? 'Pause Simulator' : 'Resume Simulator'}
-              </button>
-
-              {/* Simulated Error Toggling */}
-              <button
-                onClick={() => {
-                  setErrorSimulationMode(!errorSimulationMode);
-                  if (!errorSimulationMode) {
-                    setKpis(prev => prev.map((k, idx) => idx % 4 === 0 ? { ...k, error: true } : k));
-                  } else {
-                    setKpis(prev => prev.map(k => ({ ...k, error: false })));
-                  }
-                }}
-                className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-md border transition-all cursor-pointer ${
-                  errorSimulationMode 
-                    ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' 
-                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                <AlertTriangle className="w-3 h-3" />
-                {errorSimulationMode ? 'Restore Health' : 'Trigger Mock Error'}
-              </button>
-
-              {/* Simulated Loading State */}
-              <button
-                onClick={() => {
-                  setLoadingSimulationMode(true);
-                  setKpis(prev => prev.map(k => ({ ...k, loading: true })));
-                  setTimeout(() => {
-                    setLoadingSimulationMode(false);
-                    setKpis(prev => prev.map(k => ({ ...k, loading: false })));
-                  }, 1400);
-                }}
-                disabled={loadingSimulationMode}
-                className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-md border transition-all cursor-pointer ${
-                  loadingSimulationMode 
-                    ? 'bg-blue-50 text-blue-400 border-blue-100 cursor-not-allowed' 
-                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                <RefreshCw className={`w-3 h-3 ${loadingSimulationMode ? 'animate-spin' : ''}`} />
-                Trigger Loader
-              </button>
+          ) : (
+            <div className="flex items-center gap-2.5">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <div>
+                <p className="text-xs font-bold text-slate-800">Enterprise Core Engine Status Stable</p>
+                <p className="text-[10px] text-slate-400 font-mono">Production Grade Ledger Cluster Running</p>
+              </div>
             </div>
           )}
+
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Developer Mode Toggle (Only visible in Dev env to Developer role) */}
+            {showDevTools && (
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/60 px-3 py-1.5 rounded-lg select-none">
+                <span className="text-[9px] font-bold text-slate-400 font-mono">DEV_SANDBOX</span>
+                <button
+                  onClick={() => setIsDevMode(!isDevMode)}
+                  className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
+                    isDevMode ? 'bg-blue-600' : 'bg-slate-300'
+                  }`}
+                  aria-label="Toggle Developer Sandbox Mode"
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full bg-white shadow-xs transform transition-transform duration-200 ${
+                      isDevMode ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+                <span className="text-[10px] font-bold text-slate-700">
+                  {isDevMode ? 'Sandbox ON' : 'Sandbox OFF'}
+                </span>
+              </div>
+            )}
+
+            {/* Quick Simulation Debug Controls - ONLY visible when isDevMode is active */}
+            {showDevTools && isDevMode && (
+              <div className="flex items-center gap-2 animate-fade-in">
+                {/* Live Toggling */}
+                <button
+                  onClick={() => setIsLiveUpdating(!isLiveUpdating)}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-md border transition-all cursor-pointer min-h-[30px] ${
+                    isLiveUpdating 
+                      ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200' 
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100'
+                  }`}
+                >
+                  {isLiveUpdating ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                  {isLiveUpdating ? 'Pause Simulator' : 'Resume Simulator'}
+                </button>
+
+                {/* Simulated Error Toggling */}
+                <button
+                  onClick={() => {
+                    setErrorSimulationMode(!errorSimulationMode);
+                    if (!errorSimulationMode) {
+                      setKpis(prev => prev.map((k, idx) => idx % 4 === 0 ? { ...k, error: true } : k));
+                    } else {
+                      setKpis(prev => prev.map(k => ({ ...k, error: false })));
+                    }
+                  }}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-md border transition-all cursor-pointer min-h-[30px] ${
+                    errorSimulationMode 
+                      ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' 
+                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <AlertTriangle className="w-3 h-3" />
+                  {errorSimulationMode ? 'Restore Health' : 'Trigger Mock Error'}
+                </button>
+
+                {/* Simulated Loading State */}
+                <button
+                  onClick={() => {
+                    setLoadingSimulationMode(true);
+                    setKpis(prev => prev.map(k => ({ ...k, loading: true })));
+                    setTimeout(() => {
+                      setLoadingSimulationMode(false);
+                      setKpis(prev => prev.map(k => ({ ...k, loading: false })));
+                    }, 1400);
+                  }}
+                  disabled={loadingSimulationMode}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-md border transition-all cursor-pointer min-h-[30px] ${
+                    loadingSimulationMode 
+                      ? 'bg-blue-50 text-blue-400 border-blue-100 cursor-not-allowed' 
+                      : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <RefreshCw className={`w-3 h-3 ${loadingSimulationMode ? 'animate-spin' : ''}`} />
+                  Trigger Loader
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* HIGH DENSITY KPI SECTION */}
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="flex justify-between items-center bg-slate-100 p-1.5 rounded-lg border border-slate-200/60 max-w-lg">
             {[
               { id: 'all', name: 'All KPIs' },
@@ -668,84 +793,230 @@ export function ExecutiveDashboard() {
             ))}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            <AnimatePresence mode="popLayout">
-              {filteredKpis.map((kpi) => {
-                const IconComp = kpi.icon;
-                const isTrendPositive = kpi.trendDirection === 'up' && kpi.trend > 0;
-                const isTrendNegative = kpi.trendDirection === 'down' || kpi.trend < 0;
-                
-                return (
-                  <motion.div
-                    layout
-                    key={kpi.id}
-                    onClick={() => handleKpiCardClick(kpi.id)}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    whileHover={{ y: -2, transition: { duration: 0.15 } }}
-                    className="bg-white border border-slate-200/70 hover:border-blue-400 rounded-xl p-3.5 shadow-xs flex flex-col justify-between cursor-pointer relative overflow-hidden transition-all group"
-                  >
-                    {/* Glow effect on real-time ticking value */}
-                    <div className="absolute inset-0 bg-blue-500/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+          {/* 1. PRIMARY TOP 6 KPIs GRID */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-mono">
+              Core Executive Indicators
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+              <AnimatePresence mode="popLayout">
+                {primaryKpis.map((kpi) => {
+                  const IconComp = kpi.icon;
+                  const isTrendPositive = kpi.trendDirection === 'up' && kpi.trend > 0;
+                  const isTrendNegative = kpi.trendDirection === 'down' || kpi.trend < 0;
+                  
+                  return (
+                    <motion.div
+                      layout
+                      key={kpi.id}
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`KPI card for ${kpi.name}. Current value is ${kpi.value}.`}
+                      onClick={() => handleKpiCardClick(kpi.id)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { handleKpiCardClick(kpi.id); } }}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      whileHover={{ y: -2, transition: { duration: 0.15 } }}
+                      className="bg-white border border-slate-200/70 hover:border-blue-400 rounded-xl p-3.5 shadow-xs flex flex-col justify-between cursor-pointer relative overflow-hidden transition-all group focus-visible:ring-2 focus-visible:ring-blue-500 outline-none select-none"
+                    >
+                      {/* Glow effect on real-time ticking value */}
+                      <div className="absolute inset-0 bg-blue-500/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
 
-                    {/* Card Header */}
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[100px]">
-                        {kpi.name}
-                      </span>
-                      <div className="w-6 h-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-100 transition-colors">
-                        <IconComp className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-
-                    {/* Skeletons and Errors */}
-                    {kpi.loading ? (
-                      <div className="space-y-1.5 my-1">
-                        <div className="h-5 w-24 bg-slate-100 rounded animate-pulse" />
-                        <div className="h-3 w-16 bg-slate-50 rounded animate-pulse" />
-                      </div>
-                    ) : kpi.error ? (
-                      <div className="my-1.5 py-1 text-[10px] text-red-500 font-bold bg-red-50 border border-red-100/60 rounded flex items-center justify-center gap-1 font-mono">
-                        <AlertOctagon className="w-3 h-3 text-red-600" />
-                        NODE_CONN_ERR
-                      </div>
-                    ) : (
-                      <div className="my-1">
-                        <span className="text-lg font-bold font-display tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
-                          {kpi.value}
+                      {/* Card Header */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[100px]">
+                          {kpi.name}
                         </span>
-
-                        {/* Trend line */}
-                        <div className="flex items-center gap-1 mt-1 text-[9px] font-mono font-medium">
-                          {isTrendPositive && (
-                            <span className="text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded-md flex items-center">
-                              <ArrowUpRight className="w-2.5 h-2.5" />
-                              +{kpi.trend}%
-                            </span>
-                          )}
-                          {isTrendNegative && (
-                            <span className="text-red-600 bg-red-50 px-1 py-0.2 rounded-md flex items-center">
-                              <ArrowDownRight className="w-2.5 h-2.5" />
-                              {kpi.trend}%
-                            </span>
-                          )}
-                          {kpi.trend === 0 && (
-                            <span className="text-slate-500 bg-slate-100 px-1 py-0.2 rounded-md flex items-center">
-                              STABLE
-                            </span>
-                          )}
-                          <span className="text-slate-400 text-[8px] truncate">
-                            {kpi.comparison}
-                          </span>
+                        <div className="w-6 h-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-100 transition-colors">
+                          <IconComp className="w-3.5 h-3.5" />
                         </div>
                       </div>
-                    )}
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
+
+                      {/* Skeletons and Errors */}
+                      {kpi.loading ? (
+                        <div className="space-y-1.5 my-1">
+                          <div className="h-5 w-24 bg-slate-100 rounded animate-pulse" />
+                          <div className="h-3 w-16 bg-slate-50 rounded animate-pulse" />
+                        </div>
+                      ) : kpi.error ? (
+                        <div className="my-1.5 py-1 text-[10px] text-red-500 font-bold bg-red-50 border border-red-100/60 rounded flex items-center justify-center gap-1 font-mono">
+                          <AlertOctagon className="w-3 h-3 text-red-600" />
+                          NODE_CONN_ERR
+                        </div>
+                      ) : (
+                        <div className="my-1">
+                          <span className="text-lg font-bold font-display tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
+                            {kpi.value}
+                          </span>
+
+                          {/* Trend line */}
+                          <div className="flex items-center gap-1 mt-1 text-[9px] font-mono font-medium">
+                            {isTrendPositive && (
+                              <span className="text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded-md flex items-center">
+                                <ArrowUpRight className="w-2.5 h-2.5" />
+                                +{kpi.trend}%
+                              </span>
+                            )}
+                            {isTrendNegative && (
+                              <span className="text-red-600 bg-red-50 px-1 py-0.2 rounded-md flex items-center">
+                                <ArrowDownRight className="w-2.5 h-2.5" />
+                                {kpi.trend}%
+                              </span>
+                            )}
+                            {kpi.trend === 0 && (
+                              <span className="text-slate-500 bg-slate-100 px-1 py-0.2 rounded-md flex items-center">
+                                STABLE
+                              </span>
+                            )}
+                            <span className="text-slate-400 text-[8px] truncate">
+                              {kpi.comparison}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Last updated timestamp */}
+                      <div className="flex items-center justify-between text-[8px] font-mono text-slate-400 mt-2 border-t border-slate-50 pt-1.5">
+                        <span className="flex items-center gap-1">
+                          <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
+                          Synced: Just now
+                        </span>
+                        <span>SYS-EXEC</span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
           </div>
+
+          {/* EXPANDABLE TRIGGER FOR OTHER KPIs */}
+          {additionalKpis.length > 0 && (
+            <div className="flex justify-center pt-2">
+              <button
+                onClick={() => setIsKpiExpanded(!isKpiExpanded)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-slate-50 border border-slate-200/80 hover:bg-slate-100 text-slate-600 hover:text-slate-800 text-xs font-bold rounded-lg transition-all shadow-xs cursor-pointer select-none min-h-[44px] focus-visible:ring-2 focus-visible:ring-blue-500 outline-none"
+              >
+                {isKpiExpanded ? (
+                  <>
+                    <ChevronUp className="w-4 h-4 text-slate-500" />
+                    Hide {additionalKpis.length} Additional Operational Metrics
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-4 h-4 text-slate-500 animate-bounce" />
+                    Expand {additionalKpis.length} Additional Operational Metrics
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* 2. ADDITIONAL KPIs DRAWER */}
+          {additionalKpis.length > 0 && isKpiExpanded && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="space-y-2 pt-2 border-t border-slate-100"
+            >
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-mono">
+                Secondary Operational Metrics
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <AnimatePresence mode="popLayout">
+                  {additionalKpis.map((kpi) => {
+                    const IconComp = kpi.icon;
+                    const isTrendPositive = kpi.trendDirection === 'up' && kpi.trend > 0;
+                    const isTrendNegative = kpi.trendDirection === 'down' || kpi.trend < 0;
+                    
+                    return (
+                      <motion.div
+                        layout
+                        key={kpi.id}
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`KPI card for ${kpi.name}. Current value is ${kpi.value}.`}
+                        onClick={() => handleKpiCardClick(kpi.id)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { handleKpiCardClick(kpi.id); } }}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        whileHover={{ y: -2, transition: { duration: 0.15 } }}
+                        className="bg-white border border-slate-200/70 hover:border-blue-400 rounded-xl p-3.5 shadow-xs flex flex-col justify-between cursor-pointer relative overflow-hidden transition-all group focus-visible:ring-2 focus-visible:ring-blue-500 outline-none select-none"
+                      >
+                        {/* Glow effect on real-time ticking value */}
+                        <div className="absolute inset-0 bg-blue-500/2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+
+                        {/* Card Header */}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[100px]">
+                            {kpi.name}
+                          </span>
+                          <div className="w-6 h-6 rounded-md bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 group-hover:border-blue-100 transition-colors">
+                            <IconComp className="w-3.5 h-3.5" />
+                          </div>
+                        </div>
+
+                        {/* Skeletons and Errors */}
+                        {kpi.loading ? (
+                          <div className="space-y-1.5 my-1">
+                            <div className="h-5 w-24 bg-slate-100 rounded animate-pulse" />
+                            <div className="h-3 w-16 bg-slate-50 rounded animate-pulse" />
+                          </div>
+                        ) : kpi.error ? (
+                          <div className="my-1.5 py-1 text-[10px] text-red-500 font-bold bg-red-50 border border-red-100/60 rounded flex items-center justify-center gap-1 font-mono">
+                            <AlertOctagon className="w-3 h-3 text-red-600" />
+                            NODE_CONN_ERR
+                          </div>
+                        ) : (
+                          <div className="my-1">
+                            <span className="text-lg font-bold font-display tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
+                              {kpi.value}
+                            </span>
+
+                            {/* Trend line */}
+                            <div className="flex items-center gap-1 mt-1 text-[9px] font-mono font-medium">
+                              {isTrendPositive && (
+                                <span className="text-emerald-600 bg-emerald-50 px-1 py-0.2 rounded-md flex items-center">
+                                  <ArrowUpRight className="w-2.5 h-2.5" />
+                                  +{kpi.trend}%
+                                </span>
+                              )}
+                              {isTrendNegative && (
+                                <span className="text-red-600 bg-red-50 px-1 py-0.2 rounded-md flex items-center">
+                                  <ArrowDownRight className="w-2.5 h-2.5" />
+                                  {kpi.trend}%
+                                </span>
+                              )}
+                              {kpi.trend === 0 && (
+                                <span className="text-slate-500 bg-slate-100 px-1 py-0.2 rounded-md flex items-center">
+                                  STABLE
+                                </span>
+                              )}
+                              <span className="text-slate-400 text-[8px] truncate">
+                                {kpi.comparison}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Last updated timestamp */}
+                        <div className="flex items-center justify-between text-[8px] font-mono text-slate-400 mt-2 border-t border-slate-50 pt-1.5">
+                          <span className="flex items-center gap-1">
+                            <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
+                            Synced: Just now
+                          </span>
+                          <span>SYS-EXEC</span>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* RECHARTS DATA VISUALIZATIONS SECTION */}
@@ -1097,7 +1368,7 @@ export function ExecutiveDashboard() {
           </div>
 
           {/* Running Logs list with detailed actions */}
-          <div className="divide-y divide-slate-100 overflow-y-auto max-h-[380px] custom-scrollbar">
+          <div className="divide-y divide-slate-100">
             <AnimatePresence initial={false}>
               {filteredLogs.length > 0 ? (
                 filteredLogs.map((log) => (
@@ -1228,7 +1499,7 @@ export function ExecutiveDashboard() {
       </div>
 
       {/* RIGHT 3 COLUMNS: Status indicators, alerts sidebar, and Quick Actions deck */}
-      <div className="col-span-12 xl:col-span-3 flex flex-col gap-6 h-full overflow-y-auto pr-1">
+      <div className="col-span-12 xl:col-span-3 flex flex-col gap-6 pr-1">
         
         {/* QUICK ACTIONS DECK */}
         <div className="bg-slate-900 rounded-xl p-5 text-white shadow-xl border border-slate-800 flex flex-col">
@@ -1241,21 +1512,42 @@ export function ExecutiveDashboard() {
             </span>
           </div>
 
+          {/* Unlocked status badge */}
+          <div className="mb-3 px-2 py-1.5 bg-slate-850 border border-slate-800/60 rounded-lg flex items-center justify-between text-[10px] font-mono">
+            <span className="text-slate-400">ACTIVE_CREDENTIAL:</span>
+            <span className="text-blue-400 font-bold truncate max-w-[120px]">{activeRole}</span>
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             {[
-              { id: 'create_user', label: 'Create User', desc: 'New profile' },
-              { id: 'freeze_wallet', label: 'Freeze Wallet', desc: 'Secure asset' },
-              { id: 'approve_kyc', label: 'Approve KYC', desc: 'Manual review' },
-              { id: 'issue_card', label: 'Issue Card', desc: 'Virtual Visa' },
-              { id: 'refund_transaction', label: 'Refund Tx', desc: 'Fast reversal' },
-              { id: 'create_admin', label: 'Create Admin', desc: 'Access control' },
-              { id: 'open_support', label: 'Open Ticket', desc: 'Assign queue' },
-              { id: 'broadcast_notification', label: 'Broadcast Info', desc: 'System push' }
-            ].map(act => (
+              // Super Admin / Developer
+              { id: 'create_admin', label: 'Create Admin', desc: 'IAM Access Scope', roles: ['Super Administrator', 'Platform Administrator', 'CEO', 'Executive Team', 'Developer'] },
+              { id: 'sys_config', label: 'Configure System', desc: 'Global settings', roles: ['Super Administrator', 'Platform Administrator', 'CEO', 'Executive Team', 'Developer'] },
+
+              // Operations
+              { id: 'freeze_wallet', label: 'Freeze Wallet', desc: 'Secure asset lock', roles: ['Super Administrator', 'Platform Administrator', 'CEO', 'Executive Team', 'Operations Manager', 'Operations Agent', 'Developer'] },
+              { id: 'issue_card', label: 'Issue Visa Card', desc: 'Instantiate token', roles: ['Super Administrator', 'Platform Administrator', 'CEO', 'Executive Team', 'Operations Manager', 'Operations Agent', 'Developer'] },
+              
+              // Compliance
+              { id: 'approve_kyc', label: 'Approve KYC', desc: 'Manual review', roles: ['Super Administrator', 'Platform Administrator', 'CEO', 'Executive Team', 'Compliance Manager', 'Compliance Officer', 'Fraud Manager', 'Fraud Analyst', 'Developer'] },
+              { id: 'flag_user', label: 'Flag User AML', desc: 'Compliance warn', roles: ['Super Administrator', 'Platform Administrator', 'CEO', 'Executive Team', 'Compliance Manager', 'Compliance Officer', 'Fraud Manager', 'Fraud Analyst', 'Developer'] },
+
+              // Finance
+              { id: 'refund_transaction', label: 'Refund Tx', desc: 'Reverse processing', roles: ['Super Administrator', 'Platform Administrator', 'CEO', 'Executive Team', 'Finance Manager', 'Finance Officer', 'Treasury Manager', 'Developer'] },
+              { id: 'treasury_sweep', label: 'Treasury Sweep', desc: 'Liquidity balance', roles: ['Super Administrator', 'Platform Administrator', 'CEO', 'Executive Team', 'Finance Manager', 'Finance Officer', 'Treasury Manager', 'Developer'] },
+
+              // Standard/Default Set (Always visible)
+              { id: 'create_user', label: 'Create User', desc: 'New profile log', roles: [] },
+              { id: 'open_support', label: 'Open Ticket', desc: 'Help queue assign', roles: [] },
+              { id: 'broadcast_notification', label: 'Broadcast Info', desc: 'Global system push', roles: [] },
+            ]
+            .filter(act => act.roles.length === 0 || act.roles.includes(activeRole))
+            .map(act => (
               <button
                 key={act.id}
                 onClick={() => setActiveQuickAction(act.id)}
-                className="flex flex-col items-start p-2.5 rounded-lg bg-slate-850 hover:bg-slate-800 border border-slate-800/80 hover:border-blue-500/50 text-left transition-all cursor-pointer group"
+                className="flex flex-col items-start p-2.5 rounded-lg bg-slate-850 hover:bg-slate-800 border border-slate-800/80 hover:border-blue-500/50 text-left transition-all cursor-pointer group min-h-[44px] focus-visible:ring-2 focus-visible:ring-blue-500 outline-none"
+                aria-label={`Execute command action ${act.label}`}
               >
                 <span className="text-[10px] font-bold text-slate-100 group-hover:text-blue-400 transition-colors">
                   {act.label}
@@ -1265,6 +1557,10 @@ export function ExecutiveDashboard() {
                 </span>
               </button>
             ))}
+          </div>
+          <div className="mt-3 text-[8px] text-slate-500 font-mono text-center border-t border-slate-800/60 pt-2 flex items-center justify-center gap-1">
+            <span className="w-1 h-1 bg-emerald-500 rounded-full animate-ping" />
+            COMPLIANCE_LEVEL_4_LOGGING_ACTIVE
           </div>
         </div>
 
@@ -1278,75 +1574,140 @@ export function ExecutiveDashboard() {
           </div>
 
           <div className="space-y-3">
-            {/* 1. Critical Notification */}
-            <div className="p-3 bg-red-50/70 border border-red-100 rounded-lg text-left space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-red-700 bg-red-100 px-1.5 py-0.2 rounded font-mono uppercase">
-                  Critical Threat
-                </span>
-                <span className="text-[8px] text-slate-400 font-mono">1m ago</span>
-              </div>
-              <h4 className="text-[11px] font-bold text-slate-800">Clearing Node Outflow Discrepancy</h4>
-              <p className="text-[10px] text-slate-500 leading-normal">
-                FedWire clearing gateway reported mismatch of EUR transactions. Security keys temporarily throttled.
-              </p>
-            </div>
+            <AnimatePresence mode="popLayout">
+              {executiveAlerts.length === 0 ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="p-6 text-center bg-slate-50 border border-slate-150 rounded-lg"
+                >
+                  <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                  <p className="text-xs font-bold text-slate-800">Operational Gateway Secure</p>
+                  <p className="text-[10px] text-slate-400 mt-1 leading-normal">
+                    All global microservices and currency tunnels are reporting standard latency boundaries. No alerts triggered.
+                  </p>
+                </motion.div>
+              ) : (
+                executiveAlerts.map(alert => {
+                  let cardStyle = "bg-slate-50 border-slate-200/80";
+                  let badgeStyle = "text-slate-750 bg-slate-100";
+                  let iconColor = "text-slate-500";
+                  let titleColor = "text-slate-800";
 
-            {/* 2. System Alert */}
-            <div className="p-3 bg-amber-50/70 border border-amber-100 rounded-lg text-left space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded font-mono uppercase">
-                  System Alert
-                </span>
-                <span className="text-[8px] text-slate-400 font-mono">15m ago</span>
-              </div>
-              <h4 className="text-[11px] font-bold text-slate-800">Redis Memory Limit Approaching 80%</h4>
-              <p className="text-[10px] text-slate-500 leading-normal">
-                Cluster #09 cache is saturating with live ledger balances. Auto-scaling policy primed to instantiate next node.
-              </p>
-            </div>
+                  if (alert.severity === 'critical') {
+                    cardStyle = "bg-red-50/70 border-red-150";
+                    badgeStyle = "text-red-700 bg-red-100/70";
+                    iconColor = "text-red-500";
+                    titleColor = "text-red-950";
+                  } else if (alert.severity === 'warning') {
+                    cardStyle = "bg-amber-50/70 border-amber-150";
+                    badgeStyle = "text-amber-700 bg-amber-100/70";
+                    iconColor = "text-amber-500";
+                    titleColor = "text-amber-950";
+                  } else if (alert.severity === 'info') {
+                    cardStyle = "bg-blue-50/70 border-blue-150";
+                    badgeStyle = "text-blue-700 bg-blue-100/70";
+                    iconColor = "text-blue-500";
+                    titleColor = "text-blue-950";
+                  }
 
-            {/* 3. Compliance Alert */}
-            <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-lg text-left space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded font-mono uppercase">
-                  Compliance Signal
-                </span>
-                <span className="text-[8px] text-slate-400 font-mono">1h ago</span>
-              </div>
-              <h4 className="text-[11px] font-bold text-slate-800">PCI-DSS Audit Pre-Flight Started</h4>
-              <p className="text-[10px] text-slate-500 leading-normal">
-                Scheduled cron job verified security posture: 5 of 5 controls compliant. Standard certificates renewed.
-              </p>
-            </div>
+                  return (
+                    <motion.div
+                      key={alert.id}
+                      initial={{ opacity: 0, height: 0, y: -10 }}
+                      animate={{ opacity: 1, height: 'auto', y: 0 }}
+                      exit={{ opacity: 0, height: 0, y: 15 }}
+                      transition={{ duration: 0.25 }}
+                      className={`p-3.5 border rounded-xl text-left space-y-2 overflow-hidden ${cardStyle}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider ${badgeStyle}`}>
+                          {alert.severity}
+                        </span>
+                        <span className="text-[9px] text-slate-400 font-mono flex items-center gap-1">
+                          <Clock className="w-2.5 h-2.5" />
+                          {alert.time}
+                        </span>
+                      </div>
 
-            {/* 4. Security Alert */}
-            <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-lg text-left space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-slate-700 bg-slate-200 px-1.5 py-0.2 rounded font-mono uppercase">
-                  Security Guard
-                </span>
-                <span className="text-[8px] text-slate-400 font-mono">2h ago</span>
-              </div>
-              <h4 className="text-[11px] font-bold text-slate-800">API Access Key Revoked</h4>
-              <p className="text-[10px] text-slate-500 leading-normal">
-                Key `sk_live_9a8f27...` revoked due to N+1 database pressure constraints.
-              </p>
-            </div>
+                      <div className="space-y-1">
+                        <h4 className={`text-[11px] font-bold leading-snug ${titleColor}`}>{alert.title}</h4>
+                        <p className="text-[10px] text-slate-500 leading-normal">{alert.desc}</p>
+                      </div>
 
-            {/* 5. Maintenance Notice */}
-            <div className="p-3 bg-purple-50/70 border border-purple-100 rounded-lg text-left space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[9px] font-bold text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded font-mono uppercase">
-                  Maintenance Notice
-                </span>
-                <span className="text-[8px] text-slate-400 font-mono">Tomorrow</span>
-              </div>
-              <h4 className="text-[11px] font-bold text-slate-800">Spanner DB Engine Rollout (v5.12)</h4>
-              <p className="text-[10px] text-slate-500 leading-normal">
-                Database clusters in GCP multi-region Singapore will transition zero-downtime rolling upgrades on 03:00 UTC.
-              </p>
-            </div>
+                      <div className="pt-1.5 border-t border-slate-200/50 flex flex-col gap-1 text-[9px] font-mono text-slate-500">
+                        <div className="flex justify-between">
+                          <span>SYSTEM:</span>
+                          <span className="font-bold text-slate-700">{alert.system}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>OWNER:</span>
+                          <span className="text-slate-600 truncate max-w-[150px]" title={alert.owner}>{alert.owner}</span>
+                        </div>
+                      </div>
+
+                      {/* Contextual actions */}
+                      <div className="pt-2 flex items-center justify-between gap-1.5">
+                        {/* Left contextual control */}
+                        {alert.id === 'alert-1' && (
+                          <div className="flex gap-1.5">
+                            <button
+                              onClick={() => {
+                                if (addToast) addToast('Emergency Halt Issued', 'Global clearing rails paused under CEO authority.', 'error');
+                              }}
+                              className="text-[9px] bg-red-600 hover:bg-red-700 text-white font-bold px-2 py-1 rounded transition-colors cursor-pointer min-h-[28px] flex items-center"
+                            >
+                              Halt Rails
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (addToast) addToast('PCI Audit Triggered', 'PCI system core verification logs generated.', 'info');
+                              }}
+                              className="text-[9px] bg-slate-200 hover:bg-slate-300 text-slate-750 font-bold px-2 py-1 rounded transition-colors cursor-pointer min-h-[28px] flex items-center"
+                            >
+                              Verify Logs
+                            </button>
+                          </div>
+                        )}
+
+                        {alert.id === 'alert-2' && (
+                          <button
+                            onClick={() => {
+                              if (addToast) addToast('Cluster Scaled', 'Added node #10 to Redis cache cluster.', 'success');
+                            }}
+                            className="text-[9px] bg-amber-600 hover:bg-amber-700 text-white font-bold px-2 py-1 rounded transition-colors cursor-pointer min-h-[28px] flex items-center"
+                          >
+                            Scale Node #10
+                          </button>
+                        )}
+
+                        {alert.id === 'alert-3' && (
+                          <button
+                            onClick={() => {
+                              if (addToast) addToast('Postures Verified', 'All regional TLS keys matching master root hash.', 'success');
+                            }}
+                            className="text-[9px] bg-blue-600 hover:bg-blue-700 text-white font-bold px-2 py-1 rounded transition-colors cursor-pointer min-h-[28px] flex items-center"
+                          >
+                            Audit Signature
+                          </button>
+                        )}
+
+                        {/* Standard Acknowledge dismiss */}
+                        <button
+                          onClick={() => handleAcknowledgeAlert(alert.id)}
+                          className="text-[9px] hover:bg-slate-200 border border-slate-300 hover:border-slate-400 text-slate-600 font-medium px-2 py-1 rounded transition-all cursor-pointer ml-auto min-h-[28px] flex items-center gap-1"
+                          aria-label={`Acknowledge alert: ${alert.title}`}
+                        >
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          Acknowledge
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })
+              )}
+            </AnimatePresence>
 
             {/* 6. Scheduled Jobs */}
             <div className="p-3 bg-slate-50 border border-slate-200/60 rounded-lg text-left">
@@ -1597,6 +1958,9 @@ function QuickActionModal({ action, onClose, onSubmit }: QuickActionModalProps) 
       case 'create_admin': return 'Authorize IAM Policy Operator';
       case 'open_support': return 'Open Critical Level-2 Support Ticket';
       case 'broadcast_notification': return 'Broadcast Multi-Region Push Message';
+      case 'sys_config': return 'Configure Enterprise Global Settings';
+      case 'flag_user': return 'Flag User for Compliance Review (AML)';
+      case 'treasury_sweep': return 'Initiate Multi-Currency Treasury Sweep';
       default: return 'Execute Console Security Command';
     }
   };
@@ -1805,6 +2169,73 @@ function QuickActionModal({ action, onClose, onSubmit }: QuickActionModalProps) 
                 <option value="Enterprise developers only">Enterprise developers (Webhook API key owners)</option>
                 <option value="Merchant admins only">Merchant Store Owners only</option>
               </select>
+            </div>
+          </div>
+        );
+      case 'sys_config':
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 font-mono">Global Max Velocity Limit (USD)</label>
+              <input 
+                type="number" 
+                required
+                placeholder="150000"
+                className="w-full bg-slate-800 text-slate-100 border border-slate-750 rounded-lg p-2 text-xs outline-none focus:border-blue-500 font-mono"
+                onChange={(e) => setFormData({ ...formData, max_limit: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 font-mono">Global Reserve Buffer Ratio (%)</label>
+              <input 
+                type="number" 
+                placeholder="15"
+                className="w-full bg-slate-800 text-slate-100 border border-slate-750 rounded-lg p-2 text-xs outline-none focus:border-blue-500 font-mono"
+                onChange={(e) => setFormData({ ...formData, buffer_ratio: e.target.value })}
+              />
+            </div>
+          </div>
+        );
+      case 'flag_user':
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 font-mono">Compliance Customer Email</label>
+              <input 
+                type="email" 
+                required
+                placeholder="suspicious.operator@gmail.com"
+                className="w-full bg-slate-800 text-slate-100 border border-slate-750 rounded-lg p-2 text-xs outline-none focus:border-blue-500 font-mono"
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              />
+            </div>
+            <div className="p-2.5 bg-red-950/40 border border-red-900/60 rounded text-[10px] text-red-300 leading-normal font-medium font-mono">
+              ⚠️ <strong>Critical Action:</strong> This flags the account across AML, PEP, and OFAC velocity watchlists instantly.
+            </div>
+          </div>
+        );
+      case 'treasury_sweep':
+        return (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 font-mono">Sweep Target Bank Routing</label>
+              <input 
+                type="text" 
+                required
+                placeholder="JP_MORGAN_90182"
+                className="w-full bg-slate-800 text-slate-100 border border-slate-750 rounded-lg p-2 text-xs outline-none focus:border-blue-500 font-mono"
+                onChange={(e) => setFormData({ ...formData, routing: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 font-mono">Liquidity Transfer Amount (USD)</label>
+              <input 
+                type="number" 
+                required
+                placeholder="4500000.00"
+                className="w-full bg-slate-800 text-slate-100 border border-slate-750 rounded-lg p-2 text-xs outline-none focus:border-blue-500 font-mono"
+                onChange={(e) => setFormData({ ...formData, sweep_amount: e.target.value })}
+              />
             </div>
           </div>
         );

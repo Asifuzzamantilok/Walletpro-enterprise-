@@ -141,7 +141,7 @@ export default function IdentityAccessCenter({ activeSubTab, onToast, onSelectTa
   const isAdminUsersTab = activeSubTab === 'iam-admin-users';
 
   return (
-    <div id="iam-platform-shell" className="flex-1 overflow-y-auto bg-slate-50/50 p-6 space-y-6">
+    <div id="iam-platform-shell" className="flex-1 bg-slate-50/50 p-6 space-y-6">
       
       {/* Dynamic Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200/60 pb-5 text-left">

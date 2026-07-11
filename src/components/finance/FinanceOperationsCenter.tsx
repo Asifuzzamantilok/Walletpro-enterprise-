@@ -1428,7 +1428,7 @@ export function FinanceOperationsCenter({ activeSubTab, onToast, onSelectTab }: 
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
+    <div className="flex-1 flex flex-col bg-slate-50">
       {/* Sub-header */}
       <div className="bg-white border-b border-slate-200/60 p-4 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
         <div>
@@ -1459,7 +1459,7 @@ export function FinanceOperationsCenter({ activeSubTab, onToast, onSelectTab }: 
       </div>
 
       {/* Main Tab Render Space */}
-      <div className="flex-1 p-6 overflow-y-auto custom-scrollbar pb-16">
+      <div className="flex-1 p-6 pb-16">
         {renderSubView()}
       </div>
 

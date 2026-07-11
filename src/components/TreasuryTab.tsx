@@ -49,7 +49,7 @@ export function TreasuryTab({ balances, transactions, onTriggerSweep, isProcessi
   };
 
   return (
-    <div className="space-y-6 h-full overflow-y-auto pb-12 pr-1 custom-scrollbar">
+    <div className="space-y-6 pb-6">
       {/* Top summary metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Total Liquidity */}

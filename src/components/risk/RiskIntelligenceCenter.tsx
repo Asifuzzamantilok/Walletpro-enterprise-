@@ -17,6 +17,7 @@ interface RiskIntelligenceCenterProps {
   activeSubTab: string;
   onToast: (message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
   onSelectTab: (tabId: string) => void;
+  isDarkMode?: boolean;
 }
 
 // Interfaces
@@ -94,16 +95,7 @@ interface AuditLog {
   details: string;
 }
 
-export function RiskIntelligenceCenter({ activeSubTab, onToast, onSelectTab }: RiskIntelligenceCenterProps) {
-  // Theme toggle: Local dark/light within this module for superior user-controlled aesthetics
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    return localStorage.getItem('walletpro_risk_theme') === 'dark';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('walletpro_risk_theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
-
+export function RiskIntelligenceCenter({ activeSubTab, onToast, onSelectTab, isDarkMode = false }: RiskIntelligenceCenterProps) {
   // Loading States
   const [isLoading, setIsLoading] = useState<boolean>(true);
   useEffect(() => {
@@ -704,14 +696,6 @@ export function RiskIntelligenceCenter({ activeSubTab, onToast, onSelectTab }: R
             <span>{isLiveStreaming ? 'LIVE RADAR STREAMING' : 'RADAR PAUSED'}</span>
           </button>
 
-          {/* Theme switcher */}
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 cursor-pointer transition-all shadow-sm"
-            title="Toggle Local Dark Mode Theme"
-          >
-            {isDarkMode ? '☀️ Switch Light Mode' : '🌙 Switch Dark Mode'}
-          </button>
         </div>
       </div>
 

@@ -93,7 +93,7 @@ export function SettlementsPage({ onToast }: SettlementsPageProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
+    <div className="flex-1 flex flex-col bg-slate-50">
       
       {/* Sub-header */}
       <div className="bg-white border-b border-slate-200/60 p-4 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4 text-left">
@@ -151,7 +151,7 @@ export function SettlementsPage({ onToast }: SettlementsPageProps) {
       </div>
 
       {/* Grid view */}
-      <div className="flex-1 overflow-y-auto h-full p-4 custom-scrollbar">
+      <div className="flex-1 p-4">
         {isLoading ? (
           <div className="space-y-3">
             {[...Array(3)].map((_, i) => (

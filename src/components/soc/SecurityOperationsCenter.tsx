@@ -26,18 +26,10 @@ interface SecurityOperationsCenterProps {
   activeSubTab: string;
   onToast: (title: string, message: string, type: 'success' | 'warning' | 'info') => void;
   onSelectTab: (tabId: string) => void;
+  isDarkMode?: boolean;
 }
 
-export function SecurityOperationsCenter({ activeSubTab, onToast, onSelectTab }: SecurityOperationsCenterProps) {
-  // Theme state: allows dark / light mode for this administrative interface
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    return localStorage.getItem('walletpro_soc_theme') === 'dark';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('walletpro_soc_theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
-
+export function SecurityOperationsCenter({ activeSubTab, onToast, onSelectTab, isDarkMode = false }: SecurityOperationsCenterProps) {
   // LIVE DATA STATES
   const [liveEvents, setLiveEvents] = useState<LiveSecurityEvent[]>(SEED_LIVE_EVENTS);
   const [isStreaming, setIsStreaming] = useState<boolean>(true);
@@ -405,14 +397,6 @@ export function SecurityOperationsCenter({ activeSubTab, onToast, onSelectTab }:
                 Telemetry Paused
               </>
             )}
-          </button>
-
-          {/* Theme Selector */}
-          <button 
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
-          >
-            {isDarkMode ? '☀️ Light View' : '🌙 Night View'}
           </button>
 
           {/* Create Incident Override */}

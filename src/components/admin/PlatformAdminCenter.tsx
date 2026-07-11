@@ -31,18 +31,10 @@ interface PlatformAdminCenterProps {
   activeSubTab: string;
   onToast: (title: string, message: string, type: 'success' | 'warning' | 'info') => void;
   onSelectTab: (tabId: string) => void;
+  isDarkMode?: boolean;
 }
 
-export function PlatformAdminCenter({ activeSubTab, onToast, onSelectTab }: PlatformAdminCenterProps) {
-  // Theme state for admin panel (local preference)
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    return localStorage.getItem('walletpro_plat_theme') === 'dark';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('walletpro_plat_theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
-
+export function PlatformAdminCenter({ activeSubTab, onToast, onSelectTab, isDarkMode = false }: PlatformAdminCenterProps) {
   // LIVE RUNTIME STATES (using LocalStorage for reliable persistence during exploration)
   const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>(() => {
     const local = localStorage.getItem('walletpro_plat_flags');
@@ -370,7 +362,7 @@ export function PlatformAdminCenter({ activeSubTab, onToast, onSelectTab }: Plat
   return (
     <div 
       id="platform-system-workspace" 
-      className={`flex-1 overflow-y-auto min-h-screen p-6 transition-colors duration-300 ${
+      className={`flex-1 min-h-full p-6 transition-colors duration-300 ${
         isDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'
       }`}
     >
@@ -450,19 +442,6 @@ export function PlatformAdminCenter({ activeSubTab, onToast, onSelectTab }: Plat
 
         {/* HEADER CONTROLS */}
         <div className="flex items-center gap-3">
-          {/* Theme Toggler */}
-          <button 
-            id="theme-toggle-btn"
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            className={`p-2.5 rounded-lg border flex items-center gap-2 text-xs font-medium transition-all ${
-              isDarkMode 
-                ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-amber-400' 
-                : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-700'
-            }`}
-          >
-            {isDarkMode ? '☀️ Light Panel' : '🌙 Enterprise Dark'}
-          </button>
-
           {/* Quick System Status Widget */}
           <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-mono font-medium ${
             globalSettings.isMaintenanceMode

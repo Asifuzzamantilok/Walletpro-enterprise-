@@ -24,6 +24,7 @@ import IdentityAccessCenter from './components/iam/IdentityAccessCenter';
 import { SecurityOperationsCenter } from './components/soc/SecurityOperationsCenter';
 import { PlatformAdminCenter } from './components/admin/PlatformAdminCenter';
 import { DeveloperPortal } from './components/developer/DeveloperPortal';
+import { MyProfileWorkspace } from './components/MyProfileWorkspace';
 import { SandboxFallbackPage } from './components/operations/SandboxFallbackPage';
 import { motion, AnimatePresence } from 'motion/react';
 import { isAuthorizedForTab } from './utils/auth';
@@ -118,6 +119,112 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Enterprise Notification System State
+  const [notifications, setNotifications] = useState<any[]>(() => {
+    const saved = localStorage.getItem('walletpro_enterprise_notifications');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // Fall back to seed
+      }
+    }
+    return [
+      {
+        id: 'notif-1',
+        category: 'Security',
+        title: 'MFA Policy Update',
+        description: 'Compliance mandated 2FA rotation is now active for all treasury officers.',
+        time: '10 mins ago',
+        priority: 'High',
+        read: false,
+        archived: false
+      },
+      {
+        id: 'notif-2',
+        category: 'Fraud',
+        title: 'Suspicious Velocity Warning',
+        description: 'Wallet wal_88a29b exceeded standard daily settlement threshold in EUR clearing loop.',
+        time: '45 mins ago',
+        priority: 'High',
+        read: false,
+        archived: false
+      },
+      {
+        id: 'notif-3',
+        category: 'Compliance',
+        title: 'PEP Screener Match',
+        description: 'Customer Tilok Mania flagged under regional PEP database for scheduled annual review.',
+        time: '2 hours ago',
+        priority: 'Medium',
+        read: false,
+        archived: false
+      },
+      {
+        id: 'notif-4',
+        category: 'Payments',
+        title: 'FedWire Settlement Cleared',
+        description: 'Settlement run #9921 for €4,291,080.00 finished with 0 unmatched clearing records.',
+        time: '3 hours ago',
+        priority: 'Low',
+        read: true,
+        archived: false
+      },
+      {
+        id: 'notif-5',
+        category: 'System',
+        title: 'API Gateway Rate limit',
+        description: 'Platform microservice latency spiked to 240ms on webhook callbacks.',
+        time: '1 day ago',
+        priority: 'Medium',
+        read: true,
+        archived: false
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('walletpro_enterprise_notifications', JSON.stringify(notifications));
+  }, [notifications]);
+
+  // Enterprise Personal Appearance Preferences
+  const [themePreference, setThemePreference] = useState<'light' | 'dark' | 'system'>(() => {
+    return (localStorage.getItem('walletpro_theme_preference') as any) || 'light';
+  });
+
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    localStorage.setItem('walletpro_theme_preference', themePreference);
+    
+    const updateTheme = () => {
+      if (themePreference === 'dark') {
+        setResolvedTheme('dark');
+        document.documentElement.classList.add('dark');
+      } else if (themePreference === 'light') {
+        setResolvedTheme('light');
+        document.documentElement.classList.remove('dark');
+      } else {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        setResolvedTheme(systemTheme);
+        if (systemTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
+    };
+
+    updateTheme();
+
+    if (themePreference === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const listener = () => updateTheme();
+      mediaQuery.addEventListener('change', listener);
+      return () => mediaQuery.removeEventListener('change', listener);
+    }
+  }, [themePreference]);
 
   // Helper to add beautiful, styled frosted glass toasts
   const addToast = (title: string, message: string, type: 'success' | 'warning' | 'info' = 'success') => {
@@ -450,10 +557,17 @@ export default function App() {
           onSearchClick={() => setIsPaletteOpen(true)} 
           userEmail={userEmail}
           onMenuToggle={() => setIsMobileDrawerOpen(true)}
+          setActiveTab={setActiveTab}
+          activeRole={activeRole}
+          notifications={notifications}
+          setNotifications={setNotifications}
+          themePreference={themePreference}
+          setThemePreference={setThemePreference}
+          onToast={addToast}
         />
 
         {/* Dynamic Inner Tab body */}
-        <div className="flex-1 p-8 overflow-hidden">
+        <div id="primary-scrollable-container" className="flex-1 p-4 md:p-8 overflow-y-auto custom-scrollbar">
           {!isAuthorizedForTab(activeRole, activeTab) ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner max-w-4xl mx-auto my-12 animate-fade-in">
               <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center text-red-600 shadow-md shadow-red-200 mb-6">
@@ -504,13 +618,13 @@ export default function App() {
           ) : (
             <>
               {activeTab === 'dashboard' && (
-                <ExecutiveDashboard />
+                <ExecutiveDashboard addToast={addToast} />
               )}
 
           {activeTab === 'audit' && (
-            <div className="grid grid-cols-12 gap-6 h-full overflow-hidden">
+            <div className="grid grid-cols-12 gap-6">
               {/* Left Column (Main Metrics and Findings Log) */}
-              <div className="col-span-12 xl:col-span-8 flex flex-col gap-6 h-full overflow-hidden">
+              <div className="col-span-12 xl:col-span-8 flex flex-col gap-6">
                 {/* Metrics */}
                 <MetricCards 
                   technicalDebtLevel={currentTechnicalDebtLevel}
@@ -637,7 +751,7 @@ export default function App() {
               </div>
 
               {/* Right Column (Roadmap Phase tracker) */}
-              <div className="col-span-12 xl:col-span-4 flex flex-col bg-slate-900 rounded-xl shadow-xl overflow-hidden h-full">
+              <div className="col-span-12 xl:col-span-4 flex flex-col bg-slate-900 rounded-xl shadow-xl">
                 {/* Roadmap Header */}
                 <div className="p-6 border-b border-slate-800 bg-slate-800/20">
                   <div className="flex justify-between items-center mb-1">
@@ -663,7 +777,7 @@ export default function App() {
                 </div>
 
                 {/* Timeline content list */}
-                <div className="flex-1 p-6 space-y-6 overflow-y-auto custom-scrollbar">
+                <div className="flex-1 p-6 space-y-6">
                   {roadmap.map((phase) => {
                     const isSelected = selectedRoadmapId === phase.id;
                     return (
@@ -823,6 +937,7 @@ export default function App() {
           {['fraud-dashboard', 'fraud-alerts', 'risk-monitoring', 'investigations', 'fraud-cases', 'frozen-accounts', 'velocity-rules', 'aml-risk', 'behavior-analytics', 'watchlists'].includes(activeTab) && (
             <RiskIntelligenceCenter 
               activeSubTab={activeTab} 
+              isDarkMode={resolvedTheme === 'dark'}
               onToast={(msg, type) => {
                 const toastType = type === 'error' ? 'warning' : type;
                 const title = type === 'success' ? 'Risk Safeguard Actioned' : type === 'warning' || type === 'error' ? 'Risk Alert Triggered' : 'Intelligence Center Notification';
@@ -882,6 +997,7 @@ export default function App() {
           ].includes(activeTab) && (
             <SecurityOperationsCenter 
               activeSubTab={activeTab} 
+              isDarkMode={resolvedTheme === 'dark'}
               onToast={addToast} 
               onSelectTab={setActiveTab} 
             />
@@ -891,6 +1007,7 @@ export default function App() {
           {activeTab.startsWith('plat-') && (
             <PlatformAdminCenter
               activeSubTab={activeTab}
+              isDarkMode={resolvedTheme === 'dark'}
               onToast={addToast}
               onSelectTab={setActiveTab}
             />
@@ -901,7 +1018,7 @@ export default function App() {
             <DeveloperPortal
               activeTab={activeTab}
               onToast={addToast}
-              isDarkMode={true}
+              isDarkMode={resolvedTheme === 'dark'}
             />
           )}
 
@@ -914,10 +1031,20 @@ export default function App() {
             />
           )}
 
+          {/* My Profile & Personal Preference Settings Workspace */}
+          {activeTab === 'profile' && (
+            <MyProfileWorkspace 
+              onToast={addToast}
+              activeRole={activeRole}
+              themePreference={themePreference}
+              setThemePreference={setThemePreference}
+            />
+          )}
+
           {/* Sandbox Fallback for unbuilt platform modules */}
           {!['dashboard', 'audit', 'customers', 'wallets', 'transactions', 'ledger', 'settlements', 
             'refunds', 'limits', 'cards', 'card-orders', 'card-transactions', 'card-limits', 
-            'card-controls', 'card-security', 'treasury', 'risk', 'fraud-center',
+            'card-controls', 'card-security', 'treasury', 'risk', 'fraud-center', 'profile',
             'kyc-queue', 'identity-verification', 'aml-screening', 'sanctions-screening', 'pep-screening', 'compliance-cases',
             'fraud-dashboard', 'fraud-alerts', 'risk-monitoring', 'investigations', 'fraud-cases', 'frozen-accounts', 'velocity-rules', 'aml-risk', 'behavior-analytics', 'watchlists',
             'treasury-dashboard', 'treasury-liquidity', 'treasury-settlements', 'treasury-reconciliation', 'treasury-revenue', 'treasury-fees', 'treasury-reserve-accounts', 'treasury-bank-accounts', 'treasury-accounting', 'treasury-financial-reports',

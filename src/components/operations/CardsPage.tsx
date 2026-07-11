@@ -376,7 +376,7 @@ export function CardsPage({ onToast, activeSubTab = 'cards' }: CardsPageProps) {
   const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-slate-50">
+    <div className="flex-1 flex flex-col bg-slate-50">
       
       {/* Dynamic Header actions depending on selected tab */}
       <div className="bg-white border-b border-slate-200/60 p-4 shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -436,8 +436,8 @@ export function CardsPage({ onToast, activeSubTab = 'cards' }: CardsPageProps) {
       </div>
 
       {/* Main Workspace Body */}
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 flex flex-col overflow-y-auto p-4 md:p-6 space-y-6 custom-scrollbar">
+      <div className="flex-1 flex">
+        <div className="flex-1 flex flex-col p-4 md:p-6 space-y-6">
 
           {/* ================= CARD DASHBOARD METRICS VIEW ================= */}
           {activeSubTab === 'cards' && (
