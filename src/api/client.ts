@@ -6,7 +6,25 @@ export const REFRESH_TOKEN_KEY = 'walletpro_refresh_token';
 export const ACTIVE_ROLE_KEY = 'walletpro_active_role';
 
 // Get base URL with fallback to the production Render URL
-const BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'https://walletpro-enterprise-backend.onrender.com/api/v1';
+const getBaseUrl = (): string => {
+  let rawUrl = (import.meta as any).env?.VITE_API_BASE_URL || 'https://walletpro-enterprise-backend.onrender.com/api/v1';
+  
+  // Strip any trailing slashes
+  rawUrl = rawUrl.replace(/\/+$/, '');
+  
+  // If it doesn't end with /api/v1 (e.g. is just the domain or has /api), append /api/v1
+  if (!rawUrl.endsWith('/api/v1')) {
+    if (rawUrl.endsWith('/api')) {
+      rawUrl = rawUrl + '/v1';
+    } else {
+      rawUrl = rawUrl + '/api/v1';
+    }
+  }
+  
+  return rawUrl;
+};
+
+const BASE_URL = getBaseUrl();
 
 // Create AXIOS instance
 export const apiClient: AxiosInstance = axios.create({
