@@ -759,13 +759,13 @@ export function ExecutiveDashboard({ addToast }: ExecutiveDashboardProps) {
             {/* Developer Mode Toggle (Only visible in Dev env to Developer role) */}
             {showDevTools && (
               <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/60 px-3 py-1.5 rounded-lg select-none">
-                <span className="text-[9px] font-bold text-slate-400 font-mono">DEV_SANDBOX</span>
+                <span className="text-[9px] font-bold text-slate-400 font-mono">SIMULATOR</span>
                 <button
                   onClick={() => setIsDevMode(!isDevMode)}
                   className={`w-9 h-5 rounded-full p-0.5 transition-colors cursor-pointer ${
                     isDevMode ? 'bg-blue-600' : 'bg-slate-300'
                   }`}
-                  aria-label="Toggle Developer Sandbox Mode"
+                  aria-label="Toggle Simulator Mode"
                 >
                   <div
                     className={`w-4 h-4 rounded-full bg-white shadow-xs transform transition-transform duration-200 ${

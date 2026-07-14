@@ -25,6 +25,12 @@ export function Login({ onLoginSuccess, onToast }: LoginProps) {
     setIsLoading(true);
     setErrorMessage(null);
 
+    // Clear any existing stale credentials before attempting a new login
+    localStorage.removeItem(ACCESS_TOKEN_KEY);
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    localStorage.removeItem(ACTIVE_ROLE_KEY);
+    localStorage.removeItem('walletpro_user');
+
     try {
       // Call auth endpoint
       const data = await authApi.login({ email, password });
@@ -42,58 +48,33 @@ export function Login({ onLoginSuccess, onToast }: LoginProps) {
       // Notify parent component to refresh state and render workspace
       onLoginSuccess(data.accessToken, data.user);
     } catch (err: any) {
-      console.error('Authentication failure:', err);
       const status = err?.response?.status;
       const serverMsg = err?.response?.data?.message;
 
       if (status === 401) {
-        setErrorMessage(serverMsg || 'Invalid credentials. Please verify your email and password.');
+        console.warn('Authentication attempt failed: Invalid credentials');
+        setErrorMessage('Invalid email or password.');
         onToast('Authentication Failed', 'Invalid email or password.', 'warning');
       } else if (status === 403) {
+        console.error('Access Forbidden:', err);
         setErrorMessage(serverMsg || 'Your account is currently suspended or lacks access permissions.');
         onToast('Access Forbidden', 'Your account does not have authorization.', 'warning');
       } else if (status === 429) {
+        console.error('Rate Limit Exceeded:', err);
         setErrorMessage('Too many authentication attempts. Please wait a few minutes before trying again.');
         onToast('Rate Limit Exceeded', 'Please try again later.', 'warning');
       } else if (status >= 500) {
-        setErrorMessage('Enterprise authentication server is currently offline. Running with fallback credentials.');
-        onToast('Server Offline', 'Proceeding with secure session initialization.', 'info');
-        
-        // Dynamic fallback state for local/preview developer environments
-        const mockUser = {
-          id: 'USR-DEV-001',
-          name: 'Tilok Mania',
-          email: email,
-          role: 'Super Administrator'
-        };
-        localStorage.setItem(ACCESS_TOKEN_KEY, 'mock-jwt-session-token');
-        localStorage.setItem(ACTIVE_ROLE_KEY, 'Super Administrator');
-        localStorage.setItem('walletpro_user', JSON.stringify(mockUser));
-        onLoginSuccess('mock-jwt-session-token', mockUser);
+        console.error('Server Error:', err);
+        setErrorMessage(serverMsg || 'Enterprise authentication server is currently experiencing issues. Please try again later.');
+        onToast('Server Error', 'Please try again shortly.', 'warning');
       } else {
+        console.error('Connection Error:', err);
         setErrorMessage(serverMsg || 'Unable to connect to the authentication gateway. Please check your network.');
-        
-        // Also support fallback for ease of previewing
-        const mockUser = {
-          id: 'USR-DEV-001',
-          name: 'Tilok Mania',
-          email: email,
-          role: 'Super Administrator'
-        };
-        localStorage.setItem(ACCESS_TOKEN_KEY, 'mock-jwt-session-token');
-        localStorage.setItem(ACTIVE_ROLE_KEY, 'Super Administrator');
-        localStorage.setItem('walletpro_user', JSON.stringify(mockUser));
-        onLoginSuccess('mock-jwt-session-token', mockUser);
+        onToast('Connection Error', 'Authentication server is unreachable.', 'warning');
       }
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const fillCredentials = (roleName: string, roleEmail: string) => {
-    setEmail(roleEmail);
-    setPassword('AdminSecurePass123!');
-    setErrorMessage(null);
   };
 
   return (
@@ -180,40 +161,6 @@ export function Login({ onLoginSuccess, onToast }: LoginProps) {
             )}
           </button>
         </form>
-
-        {/* Roles quick fill section for testing & admin control panel review */}
-        <div className="mt-6 pt-5 border-t border-slate-800">
-          <p className="text-[9px] font-black text-slate-500 uppercase tracking-wider mb-2.5 flex items-center gap-1">
-            <Terminal className="w-3 h-3 text-slate-500" />
-            <span>Developer Sandbox Quick-Fill Actions</span>
-          </p>
-          <div className="grid grid-cols-2 gap-2 text-[10px]">
-            <button
-              onClick={() => fillCredentials('Super Administrator', 'admin@walletpro.com')}
-              className="px-2.5 py-1.5 bg-slate-950 hover:bg-indigo-950/20 text-slate-300 hover:text-indigo-300 border border-slate-800/80 rounded-lg text-left transition-all cursor-pointer font-medium"
-            >
-              Super Admin
-            </button>
-            <button
-              onClick={() => fillCredentials('Compliance Officer', 'compliance@walletpro.com')}
-              className="px-2.5 py-1.5 bg-slate-950 hover:bg-indigo-950/20 text-slate-300 hover:text-indigo-300 border border-slate-800/80 rounded-lg text-left transition-all cursor-pointer font-medium"
-            >
-              Compliance Officer
-            </button>
-            <button
-              onClick={() => fillCredentials('Finance Officer', 'finance@walletpro.com')}
-              className="px-2.5 py-1.5 bg-slate-950 hover:bg-indigo-950/20 text-slate-300 hover:text-indigo-300 border border-slate-800/80 rounded-lg text-left transition-all cursor-pointer font-medium"
-            >
-              Finance Officer
-            </button>
-            <button
-              onClick={() => fillCredentials('Operations Agent', 'operations@walletpro.com')}
-              className="px-2.5 py-1.5 bg-slate-950 hover:bg-indigo-950/20 text-slate-300 hover:text-indigo-300 border border-slate-800/80 rounded-lg text-left transition-all cursor-pointer font-medium"
-            >
-              Operations Agent
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

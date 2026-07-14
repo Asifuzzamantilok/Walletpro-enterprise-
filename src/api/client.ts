@@ -102,16 +102,27 @@ apiClient.interceptors.response.use(
     const status = error.response.status;
 
     // Handle 401 Unauthorized (Expired Access Token)
-    if (status === 401 && !originalRequest._retry) {
-      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-      
-      if (!refreshToken) {
-        // No refresh token available, clear session and redirect
-        localStorage.removeItem(ACCESS_TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
-        emitApiErrorEvent('auth_expired', { message: 'Your session has expired. Redirecting to login.' });
+    const isAuthRequest = originalRequest && originalRequest.url && (
+      originalRequest.url.includes('/auth/login') || 
+      originalRequest.url.includes('/auth/refresh')
+    );
+
+    if (status === 401) {
+      if (isAuthRequest) {
+        // If an explicit login/refresh attempt receives 401, reject immediately to prevent fake auth or loops
         return Promise.reject(error);
       }
+
+      if (!originalRequest._retry) {
+        const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+        
+        if (!refreshToken) {
+          // No refresh token available, clear session and redirect
+          localStorage.removeItem(ACCESS_TOKEN_KEY);
+          localStorage.removeItem(REFRESH_TOKEN_KEY);
+          emitApiErrorEvent('auth_expired', { message: 'Your session has expired. Redirecting to login.' });
+          return Promise.reject(error);
+        }
 
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -158,6 +169,7 @@ apiClient.interceptors.response.use(
         return Promise.reject(refreshError);
       }
     }
+  }
 
     // Handle 403 Forbidden
     if (status === 403) {
