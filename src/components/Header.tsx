@@ -699,6 +699,9 @@ export function Header({
                     onClick={() => {
                       setIsProfileOpen(false);
                       onToast('Session De-authenticated', 'Cryptographic compliance session revoked cleanly. Refreshing interface.', 'warning');
+                      localStorage.removeItem('walletpro_access_token');
+                      localStorage.removeItem('walletpro_refresh_token');
+                      localStorage.removeItem('walletpro_user');
                       setTimeout(() => {
                         localStorage.setItem('walletpro_active_role', 'Read Only Analyst');
                         window.location.reload();

@@ -217,6 +217,77 @@ export function ExecutiveDashboard({ addToast }: ExecutiveDashboardProps) {
 
   const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
+  // Live Integration Effect: Fetch real metrics from Backend REST API
+  useEffect(() => {
+    let active = true;
+    const fetchLiveDashboard = async () => {
+      try {
+        const { apiClient } = await import('../api/client');
+        
+        // Fetch KPI Metrics
+        try {
+          const metricsRes = await apiClient.get('/dashboard/metrics');
+          if (active && metricsRes.data && Array.isArray(metricsRes.data)) {
+            setKpis(prev => prev.map(kpi => {
+              const live = metricsRes.data.find((m: any) => m.id === kpi.id);
+              if (live) {
+                return {
+                  ...kpi,
+                  value: live.value,
+                  numberVal: live.numberVal ?? kpi.numberVal,
+                  trend: live.trend ?? kpi.trend,
+                  trendDirection: live.trendDirection ?? kpi.trendDirection
+                };
+              }
+              return kpi;
+            }));
+          }
+        } catch (e) {
+          console.debug('Dashboard metrics endpoint not found or unreachable', e);
+        }
+
+        // Fetch Live Operation Logs
+        try {
+          const logsRes = await apiClient.get<OperationLog[]>('/dashboard/live-stream');
+          if (active && logsRes.data && Array.isArray(logsRes.data)) {
+            setLogs(logsRes.data);
+          }
+        } catch (e) {
+          console.debug('Dashboard live-stream endpoint not found or unreachable', e);
+        }
+
+        // Fetch System status
+        try {
+          const systemRes = await apiClient.get('/dashboard/system-status');
+          if (active && systemRes.data) {
+            setSystemUptimes(prev => ({
+              ...prev,
+              ...systemRes.data
+            }));
+          }
+        } catch (e) {
+          console.debug('Dashboard system-status endpoint not found or unreachable', e);
+        }
+
+      } catch (err) {
+        console.warn('Backend REST API currently unreachable. Dashboard running in self-contained simulation mode.', err);
+      }
+    };
+
+    fetchLiveDashboard();
+    // Poll every 10 seconds if live updates are enabled
+    const pollInterval = setInterval(() => {
+      if (isLiveUpdating) {
+        fetchLiveDashboard();
+      }
+    }, 10000);
+
+    return () => {
+      active = false;
+      clearInterval(pollInterval);
+    };
+  }, [isLiveUpdating]);
+
   // Real-time ticking simulation effect
   useEffect(() => {
     if (!isLiveUpdating) return;

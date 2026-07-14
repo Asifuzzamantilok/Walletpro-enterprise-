@@ -26,6 +26,7 @@ import { PlatformAdminCenter } from './components/admin/PlatformAdminCenter';
 import { DeveloperPortal } from './components/developer/DeveloperPortal';
 import { MyProfileWorkspace } from './components/MyProfileWorkspace';
 import { SandboxFallbackPage } from './components/operations/SandboxFallbackPage';
+import { Login } from './components/Login';
 import { motion, AnimatePresence } from 'motion/react';
 import { isAuthorizedForTab } from './utils/auth';
 import { 
@@ -105,8 +106,49 @@ export default function App() {
   // Treasury sweeping simulated state
   const [isProcessingSweep, setIsProcessingSweep] = useState(false);
 
+  // Secure Session Management State
+  const [accessToken, setAccessToken] = useState<string | null>(() => {
+    return localStorage.getItem('walletpro_access_token');
+  });
+
+  const [currentUser, setCurrentUser] = useState<{ id: string; name: string; email: string; role: string } | null>(() => {
+    try {
+      const saved = localStorage.getItem('walletpro_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
   // Dynamic user email from metadata/props or default
-  const userEmail = "tilok.mania@gmail.com";
+  const userEmail = currentUser?.email || "tilok.mania@gmail.com";
+
+  // Global API error handler for unified handling of session expiration and other status codes
+  useEffect(() => {
+    const handleApiError = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { type, payload } = customEvent.detail;
+      if (type === 'auth_expired') {
+        localStorage.removeItem('walletpro_access_token');
+        localStorage.removeItem('walletpro_refresh_token');
+        localStorage.removeItem('walletpro_user');
+        setAccessToken(null);
+        setCurrentUser(null);
+        addToast('Session Expired', payload.message || 'Your session has expired. Please log in again.', 'warning');
+      } else if (type === 'forbidden') {
+        addToast('Access Denied', payload.message || 'You do not have permission to execute this action.', 'warning');
+      } else if (type === 'rate_limit') {
+        addToast('Rate Limited', payload.message || 'Too many requests. Please slow down and try again.', 'warning');
+      } else if (type === 'server_error') {
+        addToast('Server Error', payload.message || 'The backend service encountered an internal error.', 'warning');
+      } else if (type === 'offline') {
+        addToast('Connection Alert', payload.message || 'You are offline. Running with cache fallback.', 'info');
+      }
+    };
+
+    window.addEventListener('walletpro_api_error', handleApiError);
+    return () => window.removeEventListener('walletpro_api_error', handleApiError);
+  }, []);
 
   // Keyboard shortcut listener for Command Palette (⌘+K / Ctrl+K)
   useEffect(() => {
@@ -475,6 +517,53 @@ export default function App() {
       default: return 'bg-amber-50 text-amber-800 border border-amber-100 font-bold';
     }
   };
+
+  if (!accessToken) {
+    return (
+      <div id="application-container" className="flex h-screen w-screen bg-slate-950 font-sans text-slate-100 overflow-hidden select-none items-center justify-center">
+        {/* Toast Notification Container */}
+        <div className="absolute top-4 right-4 z-50 flex flex-col gap-2.5 max-w-sm pointer-events-none">
+          <AnimatePresence>
+            {toasts.map((toast) => (
+              <motion.div
+                key={toast.id}
+                initial={{ opacity: 0, x: 20, y: -10 }}
+                animate={{ opacity: 1, x: 0, y: 0 }}
+                exit={{ opacity: 0, x: 30 }}
+                className="pointer-events-auto bg-slate-900/90 backdrop-blur-md border border-slate-800 p-4 rounded-xl shadow-2xl text-white flex items-start gap-3 w-80 relative overflow-hidden"
+              >
+                {/* Highlight bar */}
+                <div className={`absolute top-0 bottom-0 left-0 w-1 ${
+                  toast.type === 'success' ? 'bg-emerald-500' : toast.type === 'warning' ? 'bg-amber-500' : 'bg-blue-500'
+                }`} />
+                
+                <div className="flex-1 space-y-0.5 text-left pl-1">
+                  <h4 className="text-xs font-bold font-display tracking-tight text-slate-100">{toast.title}</h4>
+                  <p className="text-[10px] text-slate-400 font-medium leading-normal">{toast.message}</p>
+                </div>
+
+                <button 
+                  onClick={() => removeToast(toast.id)}
+                  className="text-slate-500 hover:text-slate-300 transition-colors p-0.5 rounded cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+
+        <Login 
+          onLoginSuccess={(token, user) => {
+            setAccessToken(token);
+            setCurrentUser(user);
+            setActiveRole(user.role);
+          }}
+          onToast={addToast}
+        />
+      </div>
+    );
+  }
 
   return (
     <div id="application-container" className="flex h-screen w-screen bg-[#f0f2f5] font-sans text-slate-800 overflow-hidden select-none">
